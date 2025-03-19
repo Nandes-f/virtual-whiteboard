@@ -1,15 +1,21 @@
 const express = require('express');
 const http = require('http');
+const https = require("https");
 const socketIo = require('socket.io');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
-const { setupSocketHandlers } = require('./socket/socketManager');
-
+const initializeSocket = require('./socket');
+const fs = require("fs");
 // Initialize express app
 const app = express();
-const server = http.createServer(app);
+// const options = {
+//   key: fs.readFileSync("/etc/ssl/certs/selfsigned.key"),
+//   cert: fs.readFileSync("/etc/ssl/certs/selfsigned.crt"),
+// };
 
+// const server = http.createServer(options,app);
+const server = http.createServer(app);
 // Configure CORS
 app.use(cors());
 app.use(express.json());
@@ -18,12 +24,12 @@ app.use(express.json());
 const io = socketIo(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
+    methods: '*'
   }
 });
 
-// Setup socket handlers
-setupSocketHandlers(io);
+// Initialize socket handlers with our new implementation
+initializeSocket(io);
 
 // API routes
 app.use('/api', require('./routes/api'));
@@ -37,13 +43,8 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Connect to MongoDB (optional for now)
-// mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/whiteboard')
-//   .then(() => console.log('MongoDB connected'))
-//   .catch(err => console.log('MongoDB connection error:', err));
 
-// Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 9999;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

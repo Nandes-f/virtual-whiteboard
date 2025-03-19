@@ -4,6 +4,5 @@ socket.on(EVENTS.REQUEST_CANVAS_STATE, (roomId) => {
   if (room) {
     // Send the current canvas state back to the requesting client
     socket.emit(EVENTS.CANVAS_STATE_RESPONSE, room.canvasState);
-    console.log(`Sent canvas state to user ${socket.id} in room ${roomId}`);
   }
 });

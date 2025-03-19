@@ -4,7 +4,6 @@ const { EVENTS } = require('../utils/socketEvents');
 
 function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
-    console.log('New client connected:', socket.id);
 
     // Join a room
     socket.on('join-room', (roomId, userId, userName, userRole = 'student') => {
@@ -32,13 +31,11 @@ function setupSocketHandlers(io) {
       // Send current canvas state to the new user
       if (room.canvasState) {
         socket.emit(EVENTS.CANVAS_STATE_RESPONSE, room.canvasState);
-        console.log(`Sent initial canvas state to user ${userId} in room ${roomId}`);
       }
       
       // If this user is a student, check if they should be blocked
       if (userRole === 'student' && room.blockedStudents.has(userId)) {
         socket.emit(EVENTS.STUDENT_PERMISSION_CHANGE, userId, true);
-        console.log(`Notified student ${userId} that they are blocked`);
       }
       
       // Notify others that a new user joined
@@ -53,25 +50,21 @@ function setupSocketHandlers(io) {
       const usersList = Array.from(room.users.values());
       io.to(roomId).emit('users-list', usersList);
       
-      console.log(`User ${userName} (${userId}) joined room ${roomId} as ${userRole}`);
     });
 
     // Add a new event for tutor to control student permissions
     socket.on(EVENTS.TOGGLE_STUDENT_PERMISSION, (roomId, tutorId, studentId, isBlocked) => {
       const room = rooms.get(roomId);
       if (!room) {
-        console.log(`Room ${roomId} not found for permission toggle`);
         return;
       }
       
       // Verify the sender is a tutor
       const tutor = room.users.get(tutorId);
       if (!tutor || tutor.role !== 'tutor') {
-        console.log(`User ${tutorId} is not authorized to toggle permissions`);
         return;
       }
       
-      console.log(`Tutor ${tutorId} is ${isBlocked ? 'blocking' : 'unblocking'} student ${studentId}`);
       
       // Update blocked status
       if (isBlocked) {
@@ -110,7 +103,6 @@ function setupSocketHandlers(io) {
       
       // If user is a blocked student, ignore their drawing actions
       if (user && user.role === 'student' && room.blockedStudents.has(user.id)) {
-        console.log(`Blocked student ${user.id} attempted to draw - ignoring`);
         return;
       }
       
@@ -126,7 +118,6 @@ function setupSocketHandlers(io) {
       // This prevents the feedback loop causing duplicate drawings
       socket.to(roomId).emit(EVENTS.DRAW_ACTION, drawAction);
       
-      console.log(`Draw action ${drawAction.type} from ${drawAction.userId} in room ${roomId}`);
     });
 
     // Handle canvas state updates
@@ -137,7 +128,6 @@ function setupSocketHandlers(io) {
       // Update the stored canvas state
       room.canvasState = canvasState;
       
-      console.log(`Canvas state updated in room ${roomId}`);
     });
     
     // Handle cursor position updates
@@ -153,13 +143,11 @@ function setupSocketHandlers(io) {
         room.history = [];
         // Broadcast to all clients including sender to ensure everyone clears
         io.to(roomId).emit('clear-canvas');
-        console.log(`Canvas cleared in room ${roomId}`);
       }
     });
 
     // Handle disconnection
     socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
       
       // Find and remove user from all rooms
       rooms.forEach((room, roomId) => {
@@ -179,12 +167,10 @@ function setupSocketHandlers(io) {
           const usersList = Array.from(room.users.values());
           io.to(roomId).emit('users-list', usersList);
           
-          console.log(`User ${disconnectedUserId} left room ${roomId}`);
           
           // Clean up empty rooms
           if (room.users.size === 0) {
             rooms.delete(roomId);
-            console.log(`Room ${roomId} deleted (empty)`);
           }
         }
       });
@@ -192,7 +178,6 @@ function setupSocketHandlers(io) {
 
     // Handle intentional room leaving
     socket.on('leave-room', (roomId, userId) => {
-      console.log(`User ${userId} intentionally leaving room ${roomId}`);
       
       const room = rooms.get(roomId);
       if (room && room.users.has(userId)) {
@@ -206,24 +191,20 @@ function setupSocketHandlers(io) {
         const usersList = Array.from(room.users.values());
         io.to(roomId).emit('users-list', usersList);
         
-        console.log(`User ${user.name} (${userId}) left room ${roomId}`);
         
         // Clean up empty rooms
         if (room.users.size === 0) {
           rooms.delete(roomId);
-          console.log(`Room ${roomId} deleted (empty)`);
         }
       }
     });
     
     // Add this handler for room closure
     socket.on('close-room', (roomId) => {
-      console.log(`Room ${roomId} close request received from socket ${socket.id}`);
       
       // Find the room
       const room = rooms.get(roomId);
       if (!room) {
-        console.log(`Room ${roomId} not found`);
         return;
       }
       
@@ -240,11 +221,9 @@ function setupSocketHandlers(io) {
       }
       
       if (!isUserTutor) {
-        console.log(`Non-tutor user tried to close room ${roomId}`);
         return;
       }
       
-      console.log(`Tutor ${userId} is closing room ${roomId}`);
       
       // Broadcast to all clients in the room
       io.to(roomId).emit('close-room');
@@ -252,7 +231,6 @@ function setupSocketHandlers(io) {
       // Clean up the room data
       rooms.delete(roomId);
       
-      console.log(`Room ${roomId} has been closed and removed`);
     });
     
     // Add handler for canvas state requests
@@ -261,9 +239,7 @@ function setupSocketHandlers(io) {
       if (room) {
         // Send the current canvas state back to the requesting client
         socket.emit(EVENTS.CANVAS_STATE_RESPONSE, room.canvasState);
-        console.log(`Canvas state requested and sent for room ${roomId}`);
       } else {
-        console.log(`Room ${roomId} not found for canvas state request`);
         // Send empty state to prevent client from waiting indefinitely
         socket.emit(EVENTS.CANVAS_STATE_RESPONSE, null);
       }
