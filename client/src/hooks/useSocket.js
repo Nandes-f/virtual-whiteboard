@@ -6,28 +6,25 @@ const useSocket = (roomId, userId, userName, userRole) => {
   const [isConnected, setIsConnected] = useState(false);
   const [users, setUsers] = useState([]);
   const socketRef = useRef(null);
-  // Store the effective role to ensure consistency
   const [effectiveRole, setEffectiveRole] = useState(null);
+  const eventListeners = useRef(new Map());
 
+  // Setup socket connection
   useEffect(() => {
-    // Don't create a connection if we don't have all required info
     if (!roomId || !userId || !userName) {
       return;
     }
     
-    // Get the stored role if not provided
     const role = userRole || localStorage.getItem('whiteboard_user_role') || 'student';
     setEffectiveRole(role);
     
-    // Create socket connection with more detailed logging
-    console.log(`Attempting to connect to socket server at: ${process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000'}`);
     
-    const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
+    const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://172.20.1.119:5000', {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      forceNew: true, // Force a new connection each time
-      transports: ['websocket', 'polling'], // Try WebSocket first, then fallback to polling
+      forceNew: true,
+      transports: ['websocket', 'polling'],
       query: {
         roomId,
         userId,
@@ -38,106 +35,127 @@ const useSocket = (roomId, userId, userName, userRole) => {
     
     socketRef.current = socket;
 
-    // Set up event listeners with enhanced logging
+    // Connection events
     socket.on('connect', () => {
-      console.log('Connected to server with role:', role);
       setIsConnected(true);
       
-      // Join the room with role information
+      // Join the room
       socket.emit(EVENTS.JOIN_ROOM, roomId, userId, userName || 'Anonymous', role);
-      console.log(`Joined room: ${roomId} as ${role}`);
+      
+      // Request current canvas state
+      socket.emit(EVENTS.REQUEST_CANVAS_STATE, roomId);
     });
 
     socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.log(`Disconnected from server. Reason: ${reason}`);
       setIsConnected(false);
     });
 
-    socket.on('users-list', (usersList) => {
-      console.log('Received updated users list:', usersList);
+    socket.on('disconnect', (reason) => {
+      setIsConnected(false);
+    });
+
+    // Listen for user list updates
+    socket.on(EVENTS.USERS_LIST, (usersList) => {
       setUsers(usersList);
     });
 
-    // Add specific listener for draw action acknowledgements
-    socket.on(EVENTS.DRAW_ACTION, (drawAction) => {
-      console.log('Received draw action from server:', drawAction);
+    // Listen for drawing actions
+    socket.on(EVENTS.DRAW_ACTION, (action) => {
+      const handler = eventListeners.current.get(EVENTS.DRAW_ACTION);
+      if (handler) {
+        handler(action);
+      } else {
+      }
+    });
+
+    // Listen for canvas state
+    socket.on(EVENTS.CANVAS_STATE_RESPONSE, (canvasState) => {
+      const handler = eventListeners.current.get(EVENTS.CANVAS_STATE_RESPONSE);
+      if (handler) {
+        handler(canvasState);
+      }
+    });
+
+    // Listen for room closure
+    socket.on(EVENTS.CLOSE_ROOM, () => {
+      const handler = eventListeners.current.get(EVENTS.CLOSE_ROOM);
+      if (handler) {
+        handler();
+      }
+    });
+
+    // Listen for permission changes
+    socket.on(EVENTS.STUDENT_PERMISSION_CHANGE, (data) => {
+      const handler = eventListeners.current.get(EVENTS.STUDENT_PERMISSION_CHANGE);
+      if (handler) {
+        handler(data);
+      }
     });
 
     // Clean up on unmount
     return () => {
       if (socket.connected) {
-        console.log('Cleaning up socket connection on unmount');
-        socket.emit('leave-room', roomId, userId);
+        socket.emit(EVENTS.LEAVE_ROOM, roomId, userId);
         socket.disconnect();
       }
     };
   }, [roomId, userId, userName, userRole]);
 
-  // Function to manually disconnect the socket
+  // Disconnect function
   const disconnect = useCallback(() => {
     if (socketRef.current) {
-      console.log('Manually disconnecting socket');
-      
-      // Notify server that user is leaving intentionally
       if (socketRef.current.connected) {
-        socketRef.current.emit('leave-room', roomId, userId);
+        socketRef.current.emit(EVENTS.LEAVE_ROOM, roomId, userId);
         socketRef.current.disconnect();
       }
-      
-      // Force disconnect and cleanup
       socketRef.current = null;
       setIsConnected(false);
       setUsers([]);
     }
   }, [roomId, userId]);
 
-  // Enhanced emit function with better error handling and debugging
+  // Emit function
   const emit = useCallback((event, ...args) => {
     if (socketRef.current && socketRef.current.connected) {
-      console.log(`Emitting event: ${event}`, args);
       
-      // Special handling for draw actions to ensure they're properly formatted
+      // Special handling for DRAW_ACTION to ensure it has roomId
       if (event === EVENTS.DRAW_ACTION) {
-        console.log('Draw action details:', JSON.stringify(args[2]));
-      }
-      
-      socketRef.current.emit(event, ...args, (response) => {
-        if (response && response.error) {
-          console.error(`Error in ${event}:`, response.error);
-        } else if (response) {
-          console.log(`Server acknowledged ${event}:`, response);
+        const drawAction = args[0];
+        // Make sure roomId is included
+        if (!drawAction.roomId) {
+          drawAction.roomId = roomId;
         }
-      });
+        // Make sure userId is included
+        if (!drawAction.userId) {
+          drawAction.userId = userId;
+        }
+        socketRef.current.emit(event, drawAction);
+      } else {
+        socketRef.current.emit(event, ...args);
+      }
       return true;
     } else {
-      console.warn(`Cannot emit ${event}: socket not connected. Current state:`, 
-        socketRef.current ? 'Socket exists but not connected' : 'Socket not initialized');
       return false;
     }
-  }, []);
+  }, [roomId, userId]);
 
-  // Function to add event listeners
+  // Register event listener
   const on = useCallback((event, callback) => {
+    eventListeners.current.set(event, callback);
+    
+    // If we already have a socket, also attach the listener directly
     if (socketRef.current) {
-      console.log(`Registering listener for event: ${event}`);
-      socketRef.current.on(event, (...args) => {
-        console.log(`Received event: ${event}`, args);
-        callback(...args);
-      });
-    } else {
-      console.warn(`Cannot register listener for ${event}: socket not initialized`);
+      socketRef.current.on(event, callback);
     }
   }, []);
   
-  // Function to remove event listeners
-  const off = useCallback((event, callback) => {
+  // Remove event listener
+  const off = useCallback((event) => {
+    eventListeners.current.delete(event);
+    
+    // If we have a socket, also remove the listener
     if (socketRef.current) {
-      console.log(`Removing listener for event: ${event}`);
-      socketRef.current.off(event, callback);
+      socketRef.current.off(event);
     }
   }, []);
 
@@ -149,7 +167,7 @@ const useSocket = (roomId, userId, userName, userRole) => {
     on,
     off,
     disconnect,
-    effectiveRole // Return the effective role so components can use it
+    effectiveRole
   };
 };
 

@@ -25,7 +25,6 @@ const Controls = ({ roomId }) => {
           alert('Room link copied to clipboard!');
         })
         .catch(err => {
-          console.error('Could not copy text: ', err);
         });
     }
   };

@@ -5,17 +5,33 @@ const WhiteboardContext = createContext();
 export const useWhiteboard = () => useContext(WhiteboardContext);
 
 export const WhiteboardProvider = ({ children, userId, initialRole }) => {
-  const [tool, setTool] = useState('pen');
+  const [tool, setTool] = useState('select');
   const [color, setColor] = useState('#000000');
-  const [brushSize, setBrushSize] = useState(3);
+  const [brushSize, setBrushSize] = useState(5);
   const [users, setUsers] = useState([]);
   const [darkMode, setDarkMode] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [canvasObjects, setCanvasObjects] = useState([]);
-  // Use initialRole if provided, otherwise get from localStorage or default to student
   const [userRole, setUserRole] = useState(initialRole || localStorage.getItem('whiteboard_user_role') || 'student');
   const [isActionBlocked, setIsActionBlocked] = useState(false);
+  const [viewMode, setViewMode] = useState('normal');
+
+  // Available tools
+  const availableTools = [
+    { name: 'select', icon: 'mouse-pointer' },
+    { name: 'pen', icon: 'pencil-alt' },
+    { name: 'pixel', icon: 'th' },
+    { name: 'eraser', icon: 'eraser' },
+    { name: 'rectangle', icon: 'square' },
+    { name: 'circle', icon: 'circle' },
+    { name: 'line', icon: 'slash' },
+    { name: 'arrow', icon: 'long-arrow-alt-right' },
+    { name: 'text', icon: 'font' },
+    { name: 'equation', icon: 'square-root-alt' },
+    { name: 'laser', icon: 'dot-circle' },
+    { name: 'image', icon: 'image' }
+  ];
 
   // Load preferences from localStorage
   useEffect(() => {
@@ -78,25 +94,34 @@ export const WhiteboardProvider = ({ children, userId, initialRole }) => {
     return null;
   };
 
-  // Add a function to properly change tools
-  const changeTool = (newTool) => {
-    console.log('Changing tool to:', newTool);
+  // Handle tool selection
+  const handleToolChange = (newTool) => {
     setTool(newTool);
-    
-    // Reset any active states when changing tools
-    if (newTool !== 'pen' && newTool !== 'eraser') {
-      // Additional logic for specific tools if needed
-    }
   };
-  
+
+  // Handle color change
+  const handleColorChange = (newColor) => {
+    setColor(newColor);
+  };
+
+  // Handle brush size change
+  const handleBrushSizeChange = (newSize) => {
+    setBrushSize(newSize);
+  };
+
+  // Handle view mode change
+  const handleViewModeChange = (newMode) => {
+    setViewMode(newMode);
+  };
+
   // Update the value object to include the new function
   const value = {
     tool,
-    setTool: changeTool, // Replace setTool with changeTool
+    setTool: handleToolChange,
     color,
-    setColor,
+    setColor: handleColorChange,
     brushSize,
-    setBrushSize,
+    setBrushSize: handleBrushSizeChange,
     users,
     setUsers,
     darkMode,
@@ -108,12 +133,18 @@ export const WhiteboardProvider = ({ children, userId, initialRole }) => {
     redo,
     canvasObjects,
     setCanvasObjects,
-    // Add new properties
     userRole,
     setUserRole,
     isActionBlocked,
     setIsActionBlocked,
-    userId
+    userId,
+    viewMode,
+    setViewMode,
+    availableTools,
+    handleToolChange,
+    handleColorChange,
+    handleBrushSizeChange,
+    handleViewModeChange
   };
 
   return (

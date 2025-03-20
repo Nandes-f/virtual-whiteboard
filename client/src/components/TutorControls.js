@@ -34,8 +34,12 @@ const TutorControls = ({ users, emit, roomId, userId, onCloseRoom }) => {
     }));
     
     // Then emit to server - make sure we're only toggling for the specific student
-    emit(EVENTS.TOGGLE_STUDENT_PERMISSION, roomId, userId, studentId, !currentlyBlocked);
-    console.log(`Toggling permission for student ${studentId} to ${!currentlyBlocked ? 'blocked' : 'allowed'}`);
+    emit(EVENTS.TOGGLE_STUDENT_PERMISSION, {
+      roomId,
+      studentId,
+      isAllowed: !currentlyBlocked  // isAllowed true means "blocked"
+    });
+    
   };
   
   const copyRoomId = () => {
@@ -45,7 +49,6 @@ const TutorControls = ({ users, emit, roomId, userId, onCloseRoom }) => {
         setTimeout(() => setCopySuccess(''), 2000);
       })
       .catch(err => {
-        console.error('Failed to copy room ID: ', err);
       });
   };
   
@@ -54,7 +57,6 @@ const TutorControls = ({ users, emit, roomId, userId, onCloseRoom }) => {
   
   const handleCloseRoom = () => {
     if (window.confirm('Are you sure you want to close this room? All participants will be disconnected.')) {
-      console.log('Tutor is closing room:', roomId);
       
       // First emit the close room event to the server
       emit(EVENTS.CLOSE_ROOM, roomId);

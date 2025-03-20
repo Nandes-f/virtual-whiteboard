@@ -1,61 +1,127 @@
 import React, { useState, useEffect, useRef } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import '../styles/EquationEditor.css';
 
-const EquationEditor = ({ position, onSave, onCancel }) => {
+const EquationEditor = ({ position, onSubmit, onClose }) => {
   const [equation, setEquation] = useState('');
+  const [error, setError] = useState(null);
   const previewRef = useRef(null);
+  const textareaRef = useRef(null);
+  const editorRef = useRef(null);
   
+  // Keep editor within viewport bounds
   useEffect(() => {
+    if (editorRef.current) {
+      const rect = editorRef.current.getBoundingClientRect();
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      let left = position.x;
+      let top = position.y;
+      
+      // Adjust horizontal position
+      if (left + rect.width > windowWidth - 20) {
+        left = windowWidth - rect.width - 20;
+      }
+      
+      // Adjust vertical position
+      if (top + rect.height > windowHeight - 20) {
+        top = windowHeight - rect.height - 20;
+      }
+      
+      editorRef.current.style.left = `${Math.max(10, left)}px`;
+      editorRef.current.style.top = `${Math.max(10, top)}px`;
+    }
+  }, [position]);
+  
+  // Focus textarea on mount
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+  
+  // Render preview with KaTeX
+  useEffect(() => {
+    if (!previewRef.current) return;
+    
     try {
       katex.render(equation || '\\text{Preview}', previewRef.current, {
-        throwOnError: false
+        throwOnError: false,
+        displayMode: true
       });
-    } catch (error) {
-      console.error('KaTeX error:', error);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      // Still render as much as possible even with errors
+      try {
+        katex.render(equation || '\\text{Preview}', previewRef.current, {
+          throwOnError: false,
+          displayMode: true,
+          strict: false
+        });
+      } catch (e) {
+      }
     }
   }, [equation]);
   
-  const handleSave = () => {
+  // Handle form submission
+  const handleSubmit = (e) => {
+    e.preventDefault();
     if (equation.trim()) {
-      onSave(equation);
+      onSubmit(equation);
+    } else {
+      onClose();
     }
   };
 
+  // Insert symbol at cursor position
   const insertSymbol = (symbol) => {
-    setEquation(prev => prev + symbol);
+    if (!textareaRef.current) return;
+    
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newEquation = equation.substring(0, start) + symbol + equation.substring(end);
+    
+    setEquation(newEquation);
+    
+    // Set cursor position after the inserted symbol
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + symbol.length;
+    }, 0);
   };
   
+  // Handle keyboard shortcuts
   const handleKeyDown = (e) => {
     if (e.key === 'Tab') {
       e.preventDefault();
-      const cursorPosition = e.target.selectionStart;
-      const textBeforeCursor = equation.substring(0, cursorPosition);
-      const textAfterCursor = equation.substring(cursorPosition);
-      setEquation(textBeforeCursor + '  ' + textAfterCursor);
-      // Set cursor position after inserted tab
-      setTimeout(() => {
-        e.target.selectionStart = e.target.selectionEnd = cursorPosition + 2;
-      }, 0);
+      insertSymbol('  ');
+    } else if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
     }
   };
 
+  // Common math symbols to display in editor
   const symbolGroups = [
     {
       title: 'Format',
       symbols: [
         { display: 'Bold', latex: '\\mathbf{}' },
         { display: 'Italic', latex: '\\textit{}' },
+        { display: 'Text', latex: '\\text{}' },
         { display: '[]', latex: '[]' },
         { display: '()', latex: '()' },
         { display: '{}', latex: '\\{\\}' },
         { display: '|', latex: '|' },
-        { display: ':', latex: ':' },
-        { display: '.', latex: '.' },
-        { display: 'P', latex: '\\mathcal{P}' },
-        { display: 'ℵ', latex: '\\aleph' },
-        { display: '∠', latex: '\\angle' },
-        { display: '∞', latex: '\\infty' },
+        { display: 'Sub', latex: '_{x}' },
+        { display: 'Sup', latex: '^{x}' },
       ]
     },
     {
@@ -72,6 +138,7 @@ const EquationEditor = ({ position, onSave, onCancel }) => {
         { display: 'η', latex: '\\eta' },
         { display: 'θ', latex: '\\theta' },
         { display: 'Θ', latex: '\\Theta' },
+        { display: 'ι', latex: '\\iota' },
         { display: 'κ', latex: '\\kappa' },
         { display: 'λ', latex: '\\lambda' },
         { display: 'Λ', latex: '\\Lambda' },
@@ -85,6 +152,8 @@ const EquationEditor = ({ position, onSave, onCancel }) => {
         { display: 'σ', latex: '\\sigma' },
         { display: 'Σ', latex: '\\Sigma' },
         { display: 'τ', latex: '\\tau' },
+        { display: 'υ', latex: '\\upsilon' },
+        { display: 'Υ', latex: '\\Upsilon' },
         { display: 'φ', latex: '\\phi' },
         { display: 'Φ', latex: '\\Phi' },
         { display: 'χ', latex: '\\chi' },
@@ -103,24 +172,30 @@ const EquationEditor = ({ position, onSave, onCancel }) => {
         { display: '÷', latex: '\\div' },
         { display: '±', latex: '\\pm' },
         { display: '∓', latex: '\\mp' },
+        { display: '·', latex: '\\cdot' },
+        { display: '∗', latex: '\\ast' },
+        { display: '∘', latex: '\\circ' },
+        { display: '⊕', latex: '\\oplus' },
+        { display: '⊗', latex: '\\otimes' },
+        { display: '∧', latex: '\\wedge' },
+        { display: '∨', latex: '\\vee' },
+        { display: '∩', latex: '\\cap' },
+        { display: '∪', latex: '\\cup' },
+      ]
+    },
+    {
+      title: 'Calculus',
+      symbols: [
         { display: '∫', latex: '\\int' },
         { display: '∬', latex: '\\iint' },
         { display: '∭', latex: '\\iiint' },
         { display: '∮', latex: '\\oint' },
         { display: '∇', latex: '\\nabla' },
         { display: '∂', latex: '\\partial' },
+        { display: 'lim', latex: '\\lim_{x \\to a}' },
+        { display: 'd/dx', latex: '\\frac{d}{dx}' },
         { display: '∑', latex: '\\sum' },
         { display: '∏', latex: '\\prod' },
-        { display: '∐', latex: '\\coprod' },
-        { display: '√', latex: '\\sqrt{}' },
-        { display: 'log', latex: '\\log' },
-        { display: 'ln', latex: '\\ln' },
-        { display: 'sin', latex: '\\sin' },
-        { display: 'cos', latex: '\\cos' },
-        { display: 'tan', latex: '\\tan' },
-        { display: 'cot', latex: '\\cot' },
-        { display: 'sec', latex: '\\sec' },
-        { display: 'csc', latex: '\\csc' },
       ]
     },
     {
@@ -137,164 +212,184 @@ const EquationEditor = ({ position, onSave, onCancel }) => {
         { display: '∼', latex: '\\sim' },
         { display: '≃', latex: '\\simeq' },
         { display: '∝', latex: '\\propto' },
-        { display: '≺', latex: '\\prec' },
-        { display: '≻', latex: '\\succ' },
         { display: '⊂', latex: '\\subset' },
         { display: '⊃', latex: '\\supset' },
         { display: '⊆', latex: '\\subseteq' },
         { display: '⊇', latex: '\\supseteq' },
         { display: '∈', latex: '\\in' },
-        { display: '∋', latex: '\\ni' },
         { display: '∉', latex: '\\notin' },
-        { display: '∪', latex: '\\cup' },
-        { display: '∩', latex: '\\cap' },
-        { display: '⊎', latex: '\\uplus' },
-        { display: '⊕', latex: '\\oplus' },
-        { display: '⊗', latex: '\\otimes' },
-      ]
-    },
-    {
-      title: 'Matrices',
-      symbols: [
-        { display: 'Matrix', latex: '\\begin{matrix} a & b \\\\ c & d \\end{matrix}' },
-        { display: 'pMatrix', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
-        { display: 'bMatrix', latex: '\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}' },
-        { display: 'vMatrix', latex: '\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}' },
-        { display: 'Vmatrix', latex: '\\begin{Vmatrix} a & b \\\\ c & d \\end{Vmatrix}' },
-        { display: '...', latex: '\\cdots' },
-        { display: '⋮', latex: '\\vdots' },
-        { display: '⋱', latex: '\\ddots' },
-        { display: '(n r)', latex: '\\binom{n}{r}' },
-      ]
-    },
-    {
-      title: 'Arrows',
-      symbols: [
-        { display: '→', latex: '\\rightarrow' },
-        { display: '←', latex: '\\leftarrow' },
-        { display: '↔', latex: '\\leftrightarrow' },
-        { display: '⇒', latex: '\\Rightarrow' },
-        { display: '⇐', latex: '\\Leftarrow' },
-        { display: '⇔', latex: '\\Leftrightarrow' },
-        { display: '↑', latex: '\\uparrow' },
-        { display: '↓', latex: '\\downarrow' },
-        { display: '↕', latex: '\\updownarrow' },
-        { display: '⇑', latex: '\\Uparrow' },
-        { display: '⇓', latex: '\\Downarrow' },
-        { display: '⇕', latex: '\\Updownarrow' },
-        { display: '↦', latex: '\\mapsto' },
-        { display: '↪', latex: '\\hookrightarrow' },
-        { display: '↩', latex: '\\hookleftarrow' },
-      ]
-    },
-    {
-      title: 'Fractions',
-      symbols: [
-        { display: 'a/b', latex: '\\frac{a}{b}' },
-        { display: 'a÷b', latex: 'a \\div b' },
-        { display: 'a/b/c', latex: '\\frac{\\frac{a}{b}}{c}' },
-        { display: 'a/(b/c)', latex: '\\frac{a}{\\frac{b}{c}}' },
-        { display: 'a+b+c', latex: 'a+b+c' },
-        { display: 'a-b-c', latex: 'a-b-c' },
+        { display: '∋', latex: '\\ni' },
       ]
     },
     {
       title: 'Functions',
       symbols: [
-        { display: 'f(x)', latex: 'f(x)' },
-        { display: 'f\'(x)', latex: 'f\'(x)' },
-        { display: 'f\'\'(x)', latex: 'f\'\'(x)' },
-        { display: '∫f(x)dx', latex: '\\int f(x)\\,dx' },
-        { display: '∫_a^b', latex: '\\int_{a}^{b}' },
-        { display: '∑_i^n', latex: '\\sum_{i=1}^{n}' },
-        { display: 'lim', latex: '\\lim_{x \\to \\infty}' },
-        { display: 'sup', latex: '\\sup_{x \\in A}' },
-        { display: 'inf', latex: '\\inf_{x \\in A}' },
-        { display: 'max', latex: '\\max_{x \\in A}' },
-        { display: 'min', latex: '\\min_{x \\in A}' },
+        { display: 'sin', latex: '\\sin' },
+        { display: 'cos', latex: '\\cos' },
+        { display: 'tan', latex: '\\tan' },
+        { display: 'csc', latex: '\\csc' },
+        { display: 'sec', latex: '\\sec' },
+        { display: 'cot', latex: '\\cot' },
+        { display: 'arcsin', latex: '\\arcsin' },
+        { display: 'arccos', latex: '\\arccos' },
+        { display: 'arctan', latex: '\\arctan' },
+        { display: 'sinh', latex: '\\sinh' },
+        { display: 'cosh', latex: '\\cosh' },
+        { display: 'tanh', latex: '\\tanh' },
+        { display: 'ln', latex: '\\ln' },
+        { display: 'log', latex: '\\log' },
+        { display: 'exp', latex: '\\exp' },
+        { display: 'max', latex: '\\max' },
+        { display: 'min', latex: '\\min' },
       ]
     },
     {
-      title: 'Sets',
+      title: 'Fractions & Roots',
       symbols: [
-        { display: '∅', latex: '\\emptyset' },
+        { display: 'a/b', latex: '\\frac{a}{b}' },
+        { display: '√', latex: '\\sqrt{}' },
+        { display: '∛', latex: '\\sqrt[3]{}' },
+        { display: '∜', latex: '\\sqrt[4]{}' },
+        { display: 'n√', latex: '\\sqrt[n]{}' },
+        { display: 'binom', latex: '\\binom{n}{k}' },
+      ]
+    },
+    {
+      title: 'Brackets',
+      symbols: [
+        { display: '()', latex: '\\left( \\right)' },
+        { display: '[]', latex: '\\left[ \\right]' },
+        { display: '{}', latex: '\\left\\{ \\right\\}' },
+        { display: '⟨⟩', latex: '\\left\\langle \\right\\rangle' },
+        { display: '|x|', latex: '\\left| \\right|' },
+        { display: '‖x‖', latex: '\\left\\| \\right\\|' },
+        { display: '⌈x⌉', latex: '\\left\\lceil \\right\\rceil' },
+        { display: '⌊x⌋', latex: '\\left\\lfloor \\right\\rfloor' },
+      ]
+    },
+    {
+      title: 'Arrows',
+      symbols: [
+        { display: '←', latex: '\\leftarrow' },
+        { display: '→', latex: '\\rightarrow' },
+        { display: '↔', latex: '\\leftrightarrow' },
+        { display: '⇐', latex: '\\Leftarrow' },
+        { display: '⇒', latex: '\\Rightarrow' },
+        { display: '⇔', latex: '\\Leftrightarrow' },
+        { display: '↑', latex: '\\uparrow' },
+        { display: '↓', latex: '\\downarrow' },
+        { display: '↕', latex: '\\updownarrow' },
+        { display: '⟹', latex: '\\Longrightarrow' },
+        { display: '⟸', latex: '\\Longleftarrow' },
+      ]
+    },
+    {
+      title: 'Matrices',
+      symbols: [
+        { display: '2×2', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
+        { display: '3×3', latex: '\\begin{pmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{pmatrix}' },
+        { display: '[2×2]', latex: '\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}' },
+        { display: '{2×2}', latex: '\\begin{Bmatrix} a & b \\\\ c & d \\end{Bmatrix}' },
+        { display: '|2×2|', latex: '\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}' },
+      ]
+    },
+    {
+      title: 'Special',
+      symbols: [
+        { display: '∞', latex: '\\infty' },
+        { display: '…', latex: '\\ldots' },
+        { display: '⋯', latex: '\\cdots' },
+        { display: '⋮', latex: '\\vdots' },
+        { display: '⋱', latex: '\\ddots' },
+        { display: 'ℝ', latex: '\\mathbb{R}' },
         { display: 'ℕ', latex: '\\mathbb{N}' },
         { display: 'ℤ', latex: '\\mathbb{Z}' },
         { display: 'ℚ', latex: '\\mathbb{Q}' },
-        { display: 'ℝ', latex: '\\mathbb{R}' },
         { display: 'ℂ', latex: '\\mathbb{C}' },
         { display: '∀', latex: '\\forall' },
         { display: '∃', latex: '\\exists' },
         { display: '∄', latex: '\\nexists' },
-        { display: '∨', latex: '\\lor' },
-        { display: '∧', latex: '\\land' },
         { display: '¬', latex: '\\neg' },
-        { display: '⊕', latex: '\\oplus' },
-        { display: '⊖', latex: '\\ominus' },
+        { display: '∴', latex: '\\therefore' },
+        { display: '∵', latex: '\\because' },
       ]
     },
   ];
   
+  // Render each symbol group with a set of buttons
+  const renderSymbolGroups = () => {
+    return symbolGroups.map((group, index) => (
+      <div key={index} className="symbol-group">
+        <h4>{group.title}</h4>
+        <div className="symbols-container">
+          {group.symbols.map((symbol, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="symbol-button"
+              title={symbol.latex}
+              onClick={() => insertSymbol(symbol.latex)}
+            >
+              {symbol.display}
+            </button>
+          ))}
+        </div>
+      </div>
+    ));
+  };
+  
   return (
     <div 
+      ref={editorRef}
       className="equation-editor"
       style={{ 
         left: position.x, 
         top: position.y,
       }}
     >
-      <div className="equation-toolbar">
-        <button className="toolbar-button" onClick={() => setEquation('')}>
-          <i className="fas fa-trash"></i>
-        </button>
-        <button className="toolbar-button" onClick={() => navigator.clipboard.writeText(equation)}>
-          <i className="fas fa-copy"></i>
-        </button>
-        <button className="toolbar-button" onClick={() => {
-          navigator.clipboard.readText().then(text => setEquation(prev => prev + text));
-        }}>
-          <i className="fas fa-paste"></i>
+      <div className="equation-editor-header">
+        <h3>Equation Editor</h3>
+        <button 
+          type="button" 
+          className="close-button"
+          onClick={onClose}
+        >
+          ×
         </button>
       </div>
       
       <div className="equation-preview" ref={previewRef}></div>
       
-      <textarea
-        value={equation}
-        onChange={(e) => setEquation(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Enter LaTeX equation (e.g., E = mc^2)"
-        autoFocus
-      />
+      {error && (
+        <div className="equation-error">
+          <small>{error}</small>
+        </div>
+      )}
       
-      <div className="symbol-groups">
-        {symbolGroups.map((group, groupIndex) => (
-          <div key={groupIndex} className="symbol-group">
-            <div className="symbol-group-title">{group.title}</div>
-            <div className="symbol-buttons">
-              {group.symbols.map((symbol, symbolIndex) => (
-                <button 
-                  key={symbolIndex} 
-                  className="symbol-button"
-                  onClick={() => insertSymbol(symbol.latex)}
-                  title={symbol.latex}
-                >
-                  {symbol.display}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      <div className="equation-help">
-        <small>Define equation with LaTeX markup. <kbd>Tab</kbd> or <kbd>Ctrl+arrows</kbd> to jump between brackets and matrix elements.</small>
-      </div>
-      
-      <div className="equation-buttons">
-        <button onClick={handleSave}>Save</button>
-        <button onClick={onCancel}>Cancel</button>
-      </div>
+      <form onSubmit={handleSubmit}>
+        <textarea
+          ref={textareaRef}
+          className="equation-input"
+          value={equation}
+          onChange={(e) => setEquation(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Enter LaTeX equation (e.g. \frac{x}{y} for x/y)"
+          rows={3}
+        />
+        
+        <div className="symbol-groups-container">
+          {renderSymbolGroups()}
+        </div>
+        
+        <div className="equation-editor-footer">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary-button">
+            Insert Equation
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

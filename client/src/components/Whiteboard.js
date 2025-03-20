@@ -17,6 +17,7 @@ const Whiteboard = ({ userId }) => {
     const [userRole, setUserRole] = useState('');
     const disconnectFunctionRef = useRef(null);
     const [showUsersList, setShowUsersList] = useState(false);
+    const canvasRef = useRef(null);
     
     // Get user name from localStorage or prompt
     useEffect(() => {
@@ -80,12 +81,50 @@ const Whiteboard = ({ userId }) => {
         }
     };
 
+    // Canvas action handlers
+    const handleClearCanvas = () => {
+        if (canvasRef.current && typeof canvasRef.current.clearCanvas === 'function') {
+            canvasRef.current.clearCanvas();
+        }
+    };
+
+    const handleSaveCanvas = () => {
+        if (canvasRef.current && typeof canvasRef.current.exportCanvasAsImage === 'function') {
+            const dataUrl = canvasRef.current.exportCanvasAsImage();
+            if (dataUrl) {
+                const link = document.createElement('a');
+                link.download = `whiteboard-${roomId}-${new Date().toISOString().substring(0, 19)}.png`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+    };
+
+    const handleUndoAction = () => {
+        if (canvasRef.current && typeof canvasRef.current.undoAction === 'function') {
+            canvasRef.current.undoAction();
+        }
+    };
+
+    const handleRedoAction = () => {
+        if (canvasRef.current && typeof canvasRef.current.redoAction === 'function') {
+            canvasRef.current.redoAction();
+        }
+    };
+
+    const handleUploadFile = (file) => {
+        if (canvasRef.current && typeof canvasRef.current.handleImageUpload === 'function') {
+            canvasRef.current.handleImageUpload(file);
+        }
+    };
+
     // Add listener for room closure
     useEffect(() => {
         if (on) {
             // Make sure we're listening for the correct event name
             on(EVENTS.CLOSE_ROOM, () => {
-                console.log('Room closed by tutor, redirecting to home page');
                 alert('The room has been closed by the tutor.');
                 
                 // Ensure we disconnect properly
@@ -186,16 +225,20 @@ const Whiteboard = ({ userId }) => {
                 
                 <div className="whiteboard-main">
                     <Toolbar 
-                        fabricCanvasRef={null} 
-                        isConnected={isConnected} 
-                        emit={emit}
-                        roomId={roomId}
+                        onClear={handleClearCanvas}
+                        onSave={handleSaveCanvas}
+                        onUndo={handleUndoAction}
+                        onRedo={handleRedoAction}
+                        onUpload={handleUploadFile}
+                        onLeave={handleDisconnect}
+                        disabled={(effectiveRole || userRole) === 'student' && users.find(u => u.id === userId)?.isBlocked}
                     />
                     <Canvas 
+                        ref={canvasRef}
                         roomId={roomId}
                         userId={userId}
+                        userRole={effectiveRole || userRole}
                         isConnected={isConnected}
-                        users={users}
                         emit={emit}
                         on={on}
                         off={off}
