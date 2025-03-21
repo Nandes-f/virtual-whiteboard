@@ -32,10 +32,6 @@ export const WhiteboardProvider = ({ children, userId, initialRole }) => {
     { name: 'laser', icon: 'dot-circle' },
     { name: 'image', icon: 'image' }
   ];
-
-
-  
-
   // Load preferences from localStorage
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('whiteboard_dark_mode');
