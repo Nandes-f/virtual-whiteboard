@@ -19,7 +19,7 @@ const useSocket = (roomId, userId, userName, userRole) => {
     setEffectiveRole(role);
     
     
-    const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://172.20.1.119:5000', {
+    const socket = io(process.env.REACT_APP_SOCKET_URL || 'https://2de8-82-223-120-180.ngrok-free.app', {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
